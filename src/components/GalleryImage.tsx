@@ -9,7 +9,7 @@ interface GalleryImageProps {
   index: number;
   activeIndex: number;
   dragX: MotionValue<number>;
-  springConfig: any;
+  transition: any;
   onClick?: () => void;
 }
 
@@ -18,7 +18,7 @@ const GalleryImage: React.FC<GalleryImageProps> = ({
   index,
   activeIndex,
   dragX,
-  springConfig,
+  transition,
   onClick,
 }) => {
   const [windowSize, setWindowSize] = useState({ 
@@ -45,7 +45,7 @@ const GalleryImage: React.FC<GalleryImageProps> = ({
 
   // Layout Constants
   const xMult = windowSize.w * 0.35;
-  const yMult = windowSize.h * 0.25;
+  const yMult = windowSize.h * 0.15;
   
   // Drag sensitivity
   const dragRange = windowSize.w * 0.6;
@@ -77,9 +77,9 @@ const GalleryImage: React.FC<GalleryImageProps> = ({
     dragX,
     [-dragRange, 0, dragRange],
     [
-      relPos === 1 ? 1 : 0.28,
-      relPos === 0 ? 1 : 0.28,
-      relPos === -1 ? 1 : 0.28
+      relPos === 1 ? 1 : 0.7,
+      relPos === 0 ? 1 : 0.7,
+      relPos === -1 ? 1 : 0.7
     ]
   );
 
@@ -88,9 +88,9 @@ const GalleryImage: React.FC<GalleryImageProps> = ({
     dragX,
     [-dragRange, 0, dragRange],
     [
-      relPos === 1 ? 1 : 0.45,
-      relPos === 0 ? 1 : 0.45,
-      relPos === -1 ? 1 : 0.45
+      relPos === 1 ? 1 : 0.65,
+      relPos === 0 ? 1 : 0.65,
+      relPos === -1 ? 1 : 0.65
     ]
   );
 
@@ -108,7 +108,7 @@ const GalleryImage: React.FC<GalleryImageProps> = ({
         translateX: "-50%",
         translateY: "-50%",
       }}
-      transition={springConfig}
+      transition={transition}
       onClick={!isActive ? onClick : undefined}
     >
       <img

@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { motion, useMotionValue, useSpring, AnimatePresence } from 'framer-motion';
+import React, { useState, useCallback } from 'react';
+import { motion, useMotionValue, animate } from 'framer-motion';
 import { IMAGES } from '../data/gallery';
 import GalleryImage from './GalleryImage';
 import ProgressBar from './ProgressBar';
@@ -7,47 +7,87 @@ import OverlayText from './OverlayText';
 import { useKeyNav } from '../hooks/useKeyNav';
 import styles from '../styles/Gallery.module.css';
 
-const springConfig = {
-  type: 'spring',
-  stiffness: 70,
-  damping: 20,
-  mass: 1,
-};
+const smoothTransition = {
+  type: 'tween',
+  ease: [0.32, 0.72, 0, 1], // Custom cinematic easing
+  duration: 0.7,
+} as const;
 
 const Gallery: React.FC = () => {
   const [index, setIndex] = useState(0);
+  const [windowSize, setWindowSize] = useState({ 
+    w: typeof window !== 'undefined' ? window.innerWidth : 1920
+  });
+
+  React.useEffect(() => {
+    const handleResize = () => setWindowSize({ w: window.innerWidth });
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const xMult = windowSize.w * 0.35;
   
   // Motion value for horizontal drag distance
   const dragX = useMotionValue(0);
-  // Smooth out the drag value with a spring
-  const smoothDragX = useSpring(dragX, { stiffness: 400, damping: 40 });
 
   const paginate = useCallback((newDirection: number) => {
+    const currentX = dragX.get();
     setIndex((prevIndex) => (prevIndex + newDirection + IMAGES.length) % IMAGES.length);
-    dragX.stop(); // Stop any current spring/animation
-    dragX.set(0);
-  }, [dragX]);
+    
+    dragX.stop();
+    dragX.set(currentX + newDirection * xMult);
+    
+    // Transition to the new center with smooth tween logic
+    animate(dragX, 0 as any, {
+      ...smoothTransition
+    });
+  }, [dragX, xMult]);
 
   useKeyNav(() => paginate(-1), () => paginate(1));
 
   const handleDragEnd = (_: any, info: any) => {
-    const threshold = 150;
+    const threshold = 120;
     if (info.offset.x < -threshold) {
       paginate(1);
     } else if (info.offset.x > threshold) {
       paginate(-1);
+    } else {
+      animate(dragX, 0 as any, { 
+        ...smoothTransition,
+        duration: 0.5 
+      });
     }
-    dragX.set(0);
   };
 
-  const activeImage = IMAGES[index];
+  // Scroll/Wheel Navigation
+  React.useEffect(() => {
+    let scrollTimeout: any;
+    const handleWheel = (e: WheelEvent) => {
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      dragX.set(dragX.get() - delta * 0.4);
+      
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        const threshold = 100;
+        const currentXValue = dragX.get();
+        if (currentXValue < -threshold) {
+          paginate(1);
+        } else if (currentXValue > threshold) {
+          paginate(-1);
+        } else {
+          animate(dragX, 0 as any, { ...smoothTransition, duration: 0.5 });
+        }
+      }, 100);
+    };
 
-  // Render indices: previous, current, next
-  const visibleIndices = useMemo(() => {
-    const prev = (index - 1 + IMAGES.length) % IMAGES.length;
-    const next = (index + 1) % IMAGES.length;
-    return [prev, index, next];
-  }, [index]);
+    window.addEventListener('wheel', handleWheel, { passive: true });
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+      clearTimeout(scrollTimeout);
+    };
+  }, [dragX, paginate]);
+
+  const activeImage = IMAGES[index];
 
   return (
     <main className={styles.viewport}>
@@ -100,16 +140,24 @@ const Gallery: React.FC = () => {
         style={{ cursor: 'grab' }}
         whileTap={{ cursor: 'grabbing' }}
       >
-        {visibleIndices.map((i) => (
+        {IMAGES.map((img, i) => (
           <GalleryImage
-            key={IMAGES[i].id}
-            id={IMAGES[i].id}
-            src={IMAGES[i].src}
+            key={img.id}
+            id={img.id}
+            src={img.src}
             index={i}
             activeIndex={index}
-            dragX={smoothDragX}
-            springConfig={springConfig}
-            onClick={() => paginate(i === (index + 1) % IMAGES.length ? 1 : -1)}
+            dragX={dragX}
+            transition={smoothTransition}
+            onClick={() => {
+              const diff = i - index;
+              if (diff === 0) return;
+              const total = IMAGES.length;
+              let direction = diff;
+              if (direction > total / 2) direction -= total;
+              if (direction < -total / 2) direction += total;
+              paginate(direction > 0 ? 1 : -1);
+            }}
           />
         ))}
       </motion.div>
@@ -125,7 +173,7 @@ const Gallery: React.FC = () => {
         <ProgressBar
           current={index}
           total={IMAGES.length}
-          springConfig={springConfig}
+          transition={smoothTransition}
         />
       </div>
     </main>

@@ -5,10 +5,10 @@ import styles from '../styles/ProgressBar.module.css';
 interface ProgressBarProps {
   current: number;
   total: number;
-  springConfig: any;
+  transition: any;
 }
 
-const ProgressBar: React.FC<ProgressBarProps> = ({ current, total, springConfig }) => {
+const ProgressBar: React.FC<ProgressBarProps> = ({ current, total, transition }) => {
   return (
     <div className={styles.container}>
       <div className={styles.barWrapper}>
@@ -16,7 +16,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ current, total, springConfig 
           className={styles.bar}
           initial={false}
           animate={{ width: `${((current + 1) / total) * 100}%` }}
-          transition={springConfig}
+          transition={transition}
           style={{ backgroundColor: 'var(--c-ivory)' }}
         />
       </div>
