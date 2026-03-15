@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useMotionValue, animate } from 'framer-motion';
+import { useMotionValue, animate, MotionValue } from 'framer-motion';
 import { IMAGES } from '../data/gallery';
 import GalleryImage from './GalleryImage';
 import ProgressBar from './ProgressBar';
@@ -11,8 +11,13 @@ import styles from '../styles/Gallery.module.css';
 const LIQUID_TRANSITION = { 
   type: 'tween' as const, 
   duration: 0.6, 
-  ease: [0.22, 1, 0.36, 1] as any
+  ease: [0.22, 1, 0.36, 1] 
 };
+
+type AnimateFunction = (mv: MotionValue<number>, target: number, opts: typeof LIQUID_TRANSITION) => { then: (cb: () => void) => void };
+
+const animateTo = (mv: MotionValue<number>, target: number) =>
+  (animate as unknown as AnimateFunction)(mv, target, LIQUID_TRANSITION);
 
 const Gallery: React.FC = () => {
   const [index, setIndex] = useState(0);
@@ -34,10 +39,10 @@ const Gallery: React.FC = () => {
     setIndex(prev => (prev + direction + IMAGES.length) % IMAGES.length);
     
     // Smooth, controlled glide
-    animate(offsetX, 0 as any, LIQUID_TRANSITION).then(() => {
-      isAnimating.current = false;
-    });
-  }, [offsetX]);
+  animateTo(offsetX, 0).then(() => {
+    isAnimating.current = false;
+  });
+    }, [offsetX]);
 
   useKeyNav(() => paginate(-1), () => paginate(1));
 
@@ -54,27 +59,21 @@ const Gallery: React.FC = () => {
     if (dragStart.current === null) return;
     const delta = e.clientX - dragStart.current;
     const slotWidth = window.innerWidth * 0.38;
-    
-    let move = delta / slotWidth;
-    
-    // Real-time slot shift during drag: lower range for easier pagination
-    if (move > 0.35) {
-      setIndex(prev => (prev - 1 + IMAGES.length) % IMAGES.length);
-      dragStart.current += slotWidth;
-      move -= 1;
-    } else if (move < -0.35) {
-      setIndex(prev => (prev + 1) % IMAGES.length);
-      dragStart.current -= slotWidth;
-      move += 1;
-    }
-    
+    // Clamp to ±0.99 so images never leave render range
+    const move = Math.max(-0.99, Math.min(0.99, delta / slotWidth));
     offsetX.set(move);
   }, [offsetX]);
+  
+const onPointerUp = useCallback((e: React.PointerEvent) => {
+  if (dragStart.current === null) return;
+  const delta = e.clientX - dragStart.current;
+  dragStart.current = null;
 
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    dragStart.current = null;
-    animate(offsetX, 0 as any, LIQUID_TRANSITION);
-  }, [offsetX]);
+  const threshold = 80;
+  if (delta < -threshold) paginate(1);
+  else if (delta > threshold) paginate(-1);
+  else animateTo(offsetX, 0);
+}, [offsetX, paginate]);
 
   // Pulse Scroll Logic: Reduced interval for instant responsiveness
   useEffect(() => {
@@ -97,14 +96,13 @@ const Gallery: React.FC = () => {
   }, [paginate]);
 
   const activeImage = IMAGES[index];
-
   return (
     <main
       className={styles.viewport}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onPointerCancel={() => { dragStart.current = null; animateTo(offsetX, 0); }}
       style={{ cursor: 'grab' }}
     >
       <div className="grain" />
